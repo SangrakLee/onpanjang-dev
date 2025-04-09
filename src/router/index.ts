@@ -61,8 +61,11 @@ const router = createRouter({
 		{ path: '/calendar', component: () => import('../views/Calendar.vue') },
 		{ path: '/settings', component: () => import('../views/Settings.vue') },
 		{ path: '/helper', component: () => import('../views/Helper.vue') },
-		{ path: '/:pathMatch(.*)*', component: () => import('../views/PageError.vue') }
-  ],
+		{ path: '/:pathMatch(.*)*', component: () => import('../views/PageError.vue') },
+		//
+		{ path: '/providers/:providerNumber', component: () => import('../views/providers/provider.vue') },
+		{ path: '/sellers/:sellerNumber', component: () => import('../views/sellers/seller.vue') }
+	]
 });
 
 export default router;
