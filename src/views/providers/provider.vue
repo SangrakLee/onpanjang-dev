@@ -23,54 +23,55 @@ const {
   </ul>
   {{ today }} / 주문량 요약
   <hr class="mb-4" />
+  <div class="row">
+    <div v-if="loading">로딩 중...</div>
 
-  <div v-if="loading">로딩 중...</div>
+    <div v-else-if="availableTypes.length === 0">❌ 오늘 주문이 없습니다.</div>
 
-  <div v-else-if="availableTypes.length === 0">❌ 오늘 주문이 없습니다.</div>
-
-  <div v-else class="d-flex">
-    <card class="col-sm-4 border-theme">
-      <!-- ✅ 드롭다운으로 품목 선택 -->
-      <label for="itemTypeSelect"
-        ><card-header class="form-label card-header fw-bold"
-          >품목별 주문 조회</card-header
-        ></label
-      >
-      <card-body>
-        <select
-          id="itemTypeSelect"
-          v-model="selectedType"
-          class="form-select form-select-sm"
+    <div v-else class="col-xl-4">
+      <card class="border-theme mb-3">
+        <!-- ✅ 드롭다운으로 품목 선택 -->
+        <label for="itemTypeSelect"
+          ><card-header class="form-label card-header fw-bold"
+            >품목별 주문 조회</card-header
+          ></label
         >
-          <option value="">-- 품목을 선택하세요 --</option>
-          <option v-for="type in availableTypes" :key="type" :value="type">
-            {{ type }}
-          </option>
-        </select>
+        <card-body>
+          <select
+            id="itemTypeSelect"
+            v-model="selectedType"
+            class="form-select form-select-sm"
+          >
+            <option value="">-- 품목을 선택하세요 --</option>
+            <option v-for="type in availableTypes" :key="type" :value="type">
+              {{ type }}
+            </option>
+          </select>
 
-        <!-- ✅ 선택된 품목 테이블 출력 -->
-        <div v-if="selectedType && itemSummary[selectedType]">
-          <table class="table table-striped">
-            <thead>
-              <tr>
-                <th class="text-center">상품명</th>
-                <th class="text-center">10kg 중량</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="item in itemSummary[selectedType]"
-                :key="item.item_name"
-              >
-                <td class="text-center">{{ item.item_name }}</td>
-                <td class="text-center">{{ item.total_kg.toFixed(1) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </card-body>
-    </card>
-    <div class="list-group mx-3">
+          <!-- ✅ 선택된 품목 테이블 출력 -->
+          <div v-if="selectedType && itemSummary[selectedType]">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th class="text-center">상품명</th>
+                  <th class="text-center">10kg 중량</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="item in itemSummary[selectedType]"
+                  :key="item.item_name"
+                >
+                  <td class="text-center">{{ item.item_name }}</td>
+                  <td class="text-center">{{ item.total_kg.toFixed(1) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </card-body>
+      </card>
+    </div>
+    <div class="list-group col-xl-8">
       <a
         href="#"
         class="list-group-item list-group-item-action d-flex align-items-center text-inverse"
