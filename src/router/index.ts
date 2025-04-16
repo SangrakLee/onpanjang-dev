@@ -64,7 +64,8 @@ const router = createRouter({
 		{ path: '/:pathMatch(.*)*', component: () => import('../views/PageError.vue') },
 		//
 		{ path: '/providers/:providerNumber', component: () => import('../views/providers/provider.vue') },
-		{ path: '/sellers/:sellerNumber', component: () => import('../views/sellers/Seller.vue') }
+		{ path: '/sellers/:sellerNumber', component: () => import('../views/sellers/Seller.vue') },
+		{ path: '/providers/orderpreview', component: () => import('../views/providers/providerOrderPreview.vue') }
 	]
 });
 

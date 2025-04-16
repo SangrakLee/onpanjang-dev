@@ -8,13 +8,26 @@ export const useOrderSummary = () => {
   const orders = ref([]) // ✅ 전체 주문 저장용
 
 
-  const fetchTodaySummaryByProvider = async (providerName) => {
+  const fetchTodaySummaryByProvider = async (providerIdUUID) => {
     loading.value = true
 
-    const todayStart = dayjs().startOf('day').toISOString()
-    const todayEnd = dayjs().endOf('day').toISOString()
+    // 1. 연결된 셀러 ID 가져오기
+    const { data: linkedSellers, error: linkError } = await supabase
+      .from('provider_seller_links')
+      .select('seller_id')
+      .eq('provider_id', providerIdUUID)
+      .eq('is_approved', true)
+
+    if (linkError || !linkedSellers?.length) {
+      console.error('❌ 연결된 셀러 조회 오류:', linkError)
+      loading.value = false
+      return
+    }
+
+    const sellerIds = linkedSellers.map(link => link.seller_id)
 
     // 1. 오늘 + 공급자 주문 불러오기
+    const today = dayjs().format('YYYY-MM-DD')
     const { data, error } = await supabase
       .from('seller_orders')
       .select(`
@@ -25,9 +38,8 @@ export const useOrderSummary = () => {
         raw_data,
         amount
       `)
-      .eq('provider_name', providerName)
-      .gte('order_date', todayStart)
-      .lte('order_date', todayEnd)
+      .in('seller_id', sellerIds)
+      .eq('order_date', today) // ✅ 문자열로 정확히 오늘 날짜 필터
 
     if (error) {
       console.error('❌ 주문 불러오기 오류:', error)
@@ -37,8 +49,6 @@ export const useOrderSummary = () => {
 
     orders.value = data// ✅ Supabase에서 받아온 원본 주문 전체 저장
 
-    // 2. 요약 처리
-    const itemGrouped = {}
     // ✅ 2. 품목명 통합 요약 itemSummary (원본 전체 기준으로 계산)
 
     const itemGroupedByType = {}

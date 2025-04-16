@@ -1,50 +1,21 @@
 <script setup>
-import { useRoute, useRouter } from "vue-router";
-import { ref, onMounted } from "vue";
-import { supabase } from "@/lib/supabase";
-import { useAppOptionStore } from "@/stores/app-option";
-import { onBeforeUnmount } from "vue";
-import { useOrderSummary } from "@/composables/providers/useOrderSummary";
+import { useProviderDashboard } from "@/composables/providers/useProviderDashboard";
 
-const appOption = useAppOptionStore(); // 사이드 메뉴
-
-const route = useRoute();
-const router = useRouter();
-const providerId = ref(route.params.providerNumber);
-const providerName = ref("");
-const today = new Date().toLocaleDateString("ko-KR", {
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-});
-
-// ✅ 공급자 이름 가져오기
-const { itemSummary, orders, loading, fetchTodaySummaryByProvider } =
-  useOrderSummary();
-
-const fetchProviderName = async () => {
-  const { data, error } = await supabase
-    .from("providers")
-    .select("provider_name")
-    .eq("number", providerId.value)
-    .single();
-  if (error || !data) {
-    console.error("ID 정보 조회 오류", error);
-    router.replace("/some-weird-path-that-doesn’t-exist");
-  } else {
-    providerName.value = data.provider_name;
-    await fetchTodaySummaryByProvider(providerName.value); // ✅ 요약 데이터 불러오기
-  }
-};
-onMounted(() => {
-  appOption.appSidebarHide = true;
-  fetchProviderName();
-});
-
-onBeforeUnmount(() => {
-  appOption.appSidebarHide = false;
-});
+const {
+  providerName,
+  availableTypes,
+  weightSummary,
+  itemSummary,
+  orders,
+  loading,
+  linkedSellers,
+  today,
+  selectedType,
+  sellerOrderSummary,
+  sellerItemSummary,
+} = useProviderDashboard();
 </script>
+
 <template>
   <ul class="breadcrumb">
     <li class="breadcrumb-item"><a href="#">LAYOUT</a></li>
@@ -52,34 +23,93 @@ onBeforeUnmount(() => {
   </ul>
   {{ today }} / 주문량 요약
   <hr class="mb-4" />
-  <div class="d-flex">
-    <div class="col-sm-3">
-      <span class="ms-3 text-danger"><i>참외</i></span>
-      <table
-        class="table table-striped tab-content table-bordered mt-2"
-        v-if="itemSummary['참외']"
+
+  <div v-if="loading">로딩 중...</div>
+
+  <div v-else-if="availableTypes.length === 0">❌ 오늘 주문이 없습니다.</div>
+
+  <div v-else class="d-flex">
+    <card class="col-sm-4 border-theme">
+      <!-- ✅ 드롭다운으로 품목 선택 -->
+      <label for="itemTypeSelect"
+        ><card-header class="form-label card-header fw-bold"
+          >품목별 주문 조회</card-header
+        ></label
       >
-        <tbody>
-          <tr v-for="item in itemSummary['참외']" :key="item.item_name">
-            <td class="text-center">{{ item.item_name }}</td>
-            <td class="text-center">{{ item.total_kg.toFixed(1) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="col-sm-3 ms-3">
-      <span class="ms-3 text-danger"><i>토마토</i></span>
-      <table
-        class="table table-striped tab-content table-bordered mt-2"
-        v-if="itemSummary['토마토']"
+      <card-body>
+        <select
+          id="itemTypeSelect"
+          v-model="selectedType"
+          class="form-select form-select-sm"
+        >
+          <option value="">-- 품목을 선택하세요 --</option>
+          <option v-for="type in availableTypes" :key="type" :value="type">
+            {{ type }}
+          </option>
+        </select>
+
+        <!-- ✅ 선택된 품목 테이블 출력 -->
+        <div v-if="selectedType && itemSummary[selectedType]">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th class="text-center">상품명</th>
+                <th class="text-center">10kg 중량</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="item in itemSummary[selectedType]"
+                :key="item.item_name"
+              >
+                <td class="text-center">{{ item.item_name }}</td>
+                <td class="text-center">{{ item.total_kg.toFixed(1) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </card-body>
+    </card>
+    <div class="list-group mx-3">
+      <a
+        href="#"
+        class="list-group-item list-group-item-action d-flex align-items-center text-inverse"
+        v-for="s in linkedSellers"
+        :key="s.seller_id"
       >
-        <tbody>
-          <tr v-for="item in itemSummary['토마토']" :key="item.item_name">
-            <td class="text-center">{{ item.item_name }}</td>
-            <td class="text-center">{{ item.total_kg.toFixed(1) }}</td>
-          </tr>
-        </tbody>
-      </table>
+        <span
+          class="fa fa-circle fs-9px ms-2"
+          :class="
+            sellerOrderSummary[s.seller_id]?.count > 0
+              ? 'text-success'
+              : 'text-secondary'
+          "
+        ></span>
+
+        <div class="flex-fill ps-3 d-flex">
+          <div class="fw-bold">
+            {{ s.sellers?.seller_name || "-" }}
+          </div>
+          <div class="small text-muted mx-3">
+            <span class="ms-2 small text-muted">
+              {{
+                sellerOrderSummary[s.seller_id]?.count > 0
+                  ? ""
+                  : "오늘 주문이 없습니다."
+              }}
+            </span>
+            <span
+              v-for="(count, type) in sellerItemSummary[s.seller_id]"
+              :key="type"
+              >{{ type }}: {{ count }}건 /
+              {{
+                sellerOrderSummary[s.seller_id]?.total?.toLocaleString() || "0"
+              }}원
+            </span>
+          </div>
+        </div>
+        <i class="fa fa-chevron-right text-muted"></i>
+      </a>
     </div>
   </div>
 </template>

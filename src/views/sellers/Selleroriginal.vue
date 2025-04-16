@@ -38,7 +38,7 @@
       </select>
     </div>
 
-    <!-- <div class="col-sm-2 btn-group me-2">
+    <div class="col-sm-2 btn-group me-2">
       <input
         class="form-control form-control-sm"
         type="file"
@@ -46,42 +46,6 @@
         @change="handleExcelUpload"
         accept=".xlsx,.xls"
       />
-    </div> -->
-    <div>
-      <button
-        @click="handleFileUploadClick"
-        type="button"
-        class="btn btn-outline-theme btn-sm"
-      >
-        주문서 업로드
-      </button>
-      <!-- 숨겨진 파일 input: 보이지 않게 처리 -->
-      <input
-        type="file"
-        ref="excelInput"
-        @change="handleExcelUpload"
-        style="display: none"
-      />
-
-      <div
-        class="toast position-absolute top-50 start-50 translate-middle border-danger"
-        data-autohide="true"
-        data-bs-delay="5000"
-        id="toast-warning"
-        ref="toastEl"
-      >
-        <div class="toast-header">
-          <i class="far fa-bell text-muted me-2"></i>
-          <strong class="me-auto">경고</strong>
-          <small>5초 후 닫힘</small>
-          <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="toast"
-          ></button>
-        </div>
-        <div class="toast-body">공급자와 공급 품목을 먼저 선택해 주세요.</div>
-      </div>
     </div>
   </div>
 
@@ -167,108 +131,83 @@
       </tr>
     </tbody>
   </table>
+
+  <div
+    class="toast position-absolute top-50 start-50 translate-middle border-danger"
+    data-autohide="false"
+    id="toast-warning"
+  >
+    <div class="toast-header">
+      <i class="far fa-bell text-muted me-2"></i>
+      <strong class="me-auto">Bootstrap</strong>
+      <small>5 seconds ago</small>
+      <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+    </div>
+    <div class="toast-body">공급자, 품목을 먼저 선택해 주세요.</div>
+  </div>
 </template>
 
 <script setup>
 import { useRoute, useRouter } from "vue-router";
-import { ref, onMounted, nextTick, onBeforeUnmount } from "vue";
+import { ref, onMounted } from "vue";
+import { supabase } from "@/lib/supabase";
 import { useAppOptionStore } from "@/stores/app-option";
-import { useSellerPage } from "@/composables/sellers/useSellerPage";
-import { Modal, Toast } from "bootstrap";
+import { onBeforeUnmount } from "vue";
+import { useDropdowns } from "@/composables/sellers/sellerSelectProvider";
+import { useSellerOrder } from "@/composables/sellers/sellerOrder";
+import { useSubmitOrders } from "@/composables/sellers/sellerUseSubmitOrders";
+import { Modal } from "bootstrap";
+import dayjs from "dayjs";
 
 const route = useRoute();
+const router = useRouter();
 const sellerId = Number(route.params.sellerNumber);
-const appOption = useAppOptionStore(); //사이드바 메뉴 함수ref 선언
-const {
-  sellerName,
-  fetchSellerName,
-  selectedProvider,
-  selectedItem,
-  providers,
-  providerItems,
-  processedOrders,
-  fetchTodayPreviewOrders,
-  setExcelInput,
-  setToastInstance,
-  handleExcelUpload,
-  handleFileUploadClick,
-  submitOrders,
-  resetExcel,
-  processOrders,
-  fetchProviders,
-} = useSellerPage(sellerId);
+const rawRows = ref([]);
+const appOption = useAppOptionStore(); //사이드메뉴
 
-const toastEl = ref(null);
-let toastInstance = null;
-let countdownInterval = null; // 토스트 카운트 후 종료 후 이벤트 리스너 여기로
+// ✅ 공급자 이름 가져오기
+const fetchSellerName = async () => {
+  const { data, error } = await supabase
+    .from("sellers")
+    .select("seller_name")
+    .eq("id", sellerId)
+    .single();
 
-const excelInput = ref(null); // 주문서등록 input에 대한 ref 생성 // 모달 초기화 후에도 여기
+  if (error || !data) {
+    console.error("ID 정보 조회 오류", error);
+    router.replace("/some-weird-path-that-doesn’t-exist");
+  } else {
+    sellerName.value = data.seller_name;
+  }
+};
 
 onMounted(() => {
-  nextTick(() => {
-    if (toastEl.value) {
-      const toast = new Toast(toastEl.value);
-      console.log("Toast 인스턴스 생성됨:", toast);
-      // composable에 toast 인스턴스 전달
-      setToastInstance(toast);
-      // toast가 보여질 때 카운트다운 시작
-      toastEl.value.addEventListener("shown.bs.toast", () => {
-        let secondsLeft = 5;
-        const smallElement = toastEl.value.querySelector("small");
-        if (smallElement) {
-          smallElement.textContent = `${secondsLeft}초 후 닫힘`;
-          countdownInterval = setInterval(() => {
-            secondsLeft--;
-            if (secondsLeft > 0) {
-              smallElement.textContent = `${secondsLeft}초 후 닫힘`;
-            } else {
-              clearInterval(countdownInterval);
-            }
-          }, 1000);
-        }
-      });
-      // toast가 숨겨지면 카운트다운 클리어
-      toastEl.value.addEventListener("hidden.bs.toast", () => {
-        if (countdownInterval) {
-          clearInterval(countdownInterval);
-          countdownInterval = null;
-        }
-      });
-    } else {
-      console.warn("Toast element not found");
-    }
-  });
-  setExcelInput(excelInput);
   fetchSellerName();
   appOption.appSidebarHide = true;
-  // ✅ 미리보기 로드
-  fetchTodayPreviewOrders();
 });
 
 onBeforeUnmount(() => {
   appOption.appSidebarHide = false;
 });
 
-// 공급자 공급품목 미선택 에러 토스트
-const handleButtonClick = () => {
-  if (!selectedProvider.value || !selectedItem.value) {
-    console.log("공급자나 품목 미선택 - 토스트 띄움");
-    // 버튼 클릭 시점에 toastInstance가 없으면 nextTick으로 다시 확인
-    nextTick(() => {
-      if (toastInstance) {
-        toastInstance.show();
-      } else {
-        console.warn("Toast instance가 아직 준비되지 않음");
-      }
-    });
-    return;
-  }
+// ✅ 공급자/품목 드롭다운 데이터 가져오기
+const { selectedProvider, selectedItem, providers, providerItems } =
+  useDropdowns();
+const selectedSeasonDate = ref("");
 
-  console.log("파일 업로드 처리 진행");
-  // 파일 업로드 관련 로직을 여기에 추가
-};
-
+// useSellerOrder에 인자 넘김
+const { processedOrders, handleExcelUpload, resetExcel, processOrders } =
+  useSellerOrder(sellerId, selectedItem, selectedProvider);
 // 주문서 다시 넣기위해 초기화
+const excelInput = ref(null);
+
+const resetAll = () => {
+  if (confirm("업로드된 주문서를 초기화하시겠습니까?")) {
+    excelInput.value.value = ""; // input 리셋
+    resetExcel(); // 데이터 리셋
+  }
+};
+//모달로 초기화 선택창 띄우기
 let resetModal = null;
 onMounted(() => {
   const modalEl = document.getElementById("resetConfirmModal");
@@ -291,17 +230,68 @@ const confirmReset = () => {
   resetModal.hide();
 };
 
+const { submitOrders } = useSubmitOrders();
+
 const saveToServer = async () => {
   if (processedOrders.value.length === 0) {
     alert("⛔ 먼저 엑셀을 업로드해주세요!");
     return;
   }
-  const hasMissingItemType = processedOrders.value.some((o) => !o.item_type);
+
+  // ✅ item_type 누락된 항목 있는지 체크
+  const hasMissingItemType = processedOrders.value.some(
+    (order) => !order.item_type
+  );
   if (hasMissingItemType) {
-    alert("❗ item_type 누락 주문이 있어 저장할 수 없습니다.");
+    alert(
+      "❗ item_type이 누락된 주문이 있어 저장할 수 없습니다.\n품목명에 '참외', '방울토마토' 등 키워드가 포함되어 있는지 확인해주세요."
+    );
     return;
   }
-  const { error } = await submitOrders(processedOrders.value);
-  if (!error) alert("✅ 주문이 저장되었습니다!");
+
+  const { error } = await submitOrders(
+    processedOrders.value,
+    sellerId,
+    selectedProvider.value
+  );
+
+  if (error) {
+    console.error("🛑 주문 저장 오류:", error);
+    alert("❌ 저장에 실패했습니다!");
+  } else {
+    alert("✅ 주문이 저장되었습니다!");
+  }
 };
+// 주문서 미리보기 //
+
+const fetchTodayPreviewOrders = async () => {
+  const today = dayjs().format("YYYY-MM-DD");
+
+  if (!sellerId) {
+    console.warn("⛔ 미리보기 조건 미충족: sellerId 없음");
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("seller_orders")
+    .select("*")
+    .eq("order_date", today)
+    .eq("seller_id", sellerId);
+
+  if (error) {
+    console.error("❌ 미리보기 로드 실패:", error);
+    return;
+  }
+
+  if (data?.length > 0) {
+    rawRows.value = data.map((row) => ({
+      ...row.raw_data,
+      order_number: row.order_number || "",
+      invoice_number: row.invoice_number || "",
+      seller_id: row.seller_id,
+    }));
+    processOrders(rawRows.value);
+  }
+};
+onMounted(fetchTodayPreviewOrders);
 </script>
